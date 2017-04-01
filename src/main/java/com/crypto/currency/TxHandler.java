@@ -34,15 +34,15 @@ public class TxHandler {
 
 			UTXO currentUnSpentTransaction = new UTXO(allInputTransactions.prevTxHash,
 					allInputTransactions.outputIndex);
-			// (1) all outputs claimed by {@code tx} are in the current UTXO
+			// (1) all outputs claimed by {@code tx} are in the current UTXO 
 			// pool,
 			if (isTransactionNotInPool(currentUnSpentTransaction))
 				return false;
 			// 2) the signatures on each input of {@code tx} are valid,
-			if (signatureInValid(tx, allInputTransactions))
+			if (isSignatureInValid(tx, allInputTransactions))
 				return false;
 			// (3) no UTXO is claimed multiple times by {@code tx},
-			if (isTransactionSpentMultipleTimes(allTransactions, currentUnSpentTransaction))
+			if (isTransactionDuplicated(allTransactions, currentUnSpentTransaction))
 				return false;
 			allTransactions.add(currentUnSpentTransaction);
 			// (4) all of {@code tx}s output values are non-negative, and
@@ -54,7 +54,7 @@ public class TxHandler {
 		return true;
 	}
 
-	private boolean signatureInValid(Transaction tx, Input allInputTransactions) {
+	private boolean isSignatureInValid(Transaction tx, Input allInputTransactions) {
 		return !Crypto.verifySignature(tx.getOutput(allInputTransactions.outputIndex).address,
 				tx.getRawDataToSign(allInputTransactions.outputIndex), allInputTransactions.signature);
 	}
@@ -69,7 +69,7 @@ public class TxHandler {
 	 * @param currentUnSpentTransaction
 	 * @return
 	 */
-	private boolean isTransactionSpentMultipleTimes(List<UTXO> allTransactions, UTXO currentUnSpentTransaction) {
+	private boolean isTransactionDuplicated(List<UTXO> allTransactions, UTXO currentUnSpentTransaction) {
 		return allTransactions.contains(currentUnSpentTransaction);
 	}
 
