@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.crypto.currency.Transaction.Input;
+import com.crypto.currency.Transaction.Output;
 
 public class TxHandler {
 
@@ -18,6 +19,61 @@ public class TxHandler {
 		this.currentPool = new UTXOPool(utxoPool);
 	}
 
+	public interface TxValidator {
+
+		boolean isTransactionNotInPool(UTXO currentUnSpentTransaction);
+
+		boolean isSignatureInValid(Transaction tx, Input transactionInputEntry);
+
+		boolean isTransactionDuplicated(List<UTXO> allTransactions, UTXO currentUnSpentTransaction);
+
+		boolean isValueInvalid(Transaction tx, Input transactionInputEntry);
+
+		boolean isTransactionOutputValid();
+
+	}
+
+	public class TxValidatorImpl implements TxValidator {
+
+		private UTXOPool currentPool;
+
+		public TxValidatorImpl(UTXOPool currentPool) {
+			super();
+			this.currentPool = currentPool;
+		}
+
+		@Override
+		public boolean isTransactionNotInPool(UTXO currentUnSpentTransaction) {
+			// TODO Auto-generated method stub
+			return false;
+		}
+
+		@Override
+		public boolean isSignatureInValid(Transaction tx, Input transactionInputEntry) {
+			// TODO Auto-generated method stub
+			return false;
+		}
+
+		@Override
+		public boolean isTransactionDuplicated(List<UTXO> allTransactions, UTXO currentUnSpentTransaction) {
+			// TODO Auto-generated method stub
+			return false;
+		}
+
+		@Override
+		public boolean isValueInvalid(Transaction tx, Input transactionInputEntry) {
+			// TODO Auto-generated method stub
+			return false;
+		}
+
+		@Override
+		public boolean isTransactionOutputValid() {
+			// TODO Auto-generated method stub
+			return false;
+		}
+
+	}
+
 	/**
 	 * @return true if: (1) all outputs claimed by {@code tx} are in the current
 	 *         UTXO pool, (2) the signatures on each input of {@code tx} are
@@ -30,35 +86,62 @@ public class TxHandler {
 
 		List<UTXO> allTransactions = new ArrayList<>();
 
-		for (Input allInputTransactions : tx.getInputs()) {
+		double sumOfInputTransaction = 0;
 
-			UTXO currentUnSpentTransaction = new UTXO(allInputTransactions.prevTxHash,
-					allInputTransactions.outputIndex);
-			// (1) all outputs claimed by {@code tx} are in the current UTXO 
+		for (Input transactionInputEntry : tx.getInputs()) {
+
+			UTXO currentUnSpentTransaction = new UTXO(transactionInputEntry.prevTxHash,
+					transactionInputEntry.outputIndex);
+			// (1) all outputs claimed by {@code tx} are in the current UTXO
 			// pool,
 			if (isTransactionNotInPool(currentUnSpentTransaction))
 				return false;
 			// 2) the signatures on each input of {@code tx} are valid,
-			if (isSignatureInValid(tx, allInputTransactions))
+			if (isSignatureInValid(tx, transactionInputEntry))
 				return false;
 			// (3) no UTXO is claimed multiple times by {@code tx},
 			if (isTransactionDuplicated(allTransactions, currentUnSpentTransaction))
 				return false;
 			allTransactions.add(currentUnSpentTransaction);
 			// (4) all of {@code tx}s output values are non-negative, and
-			if (isValueInvalid(tx, allInputTransactions))
+			if (isValueInvalid(tx, transactionInputEntry))
 				return false;
-
+			sumOfInputTransaction += currentPool.getTxOutput(currentUnSpentTransaction).value;
 		}
+
+		// (5) the sum of {@code tx}s input values is greater than or equal to
+		// the sum of its output values; and false otherwise.
+		if (getOutputTransactionSum(tx) > sumOfInputTransaction)
+			return false;
 
 		return true;
 	}
 
+	private double getOutputTransactionSum(Transaction tx) {
+		double sumOfOutputTransaction = 0;
+		for (Output output : tx.getOutputs()) {
+			sumOfOutputTransaction += output.value;
+		}
+		return sumOfOutputTransaction;
+	}
+
+	/**
+	 * 
+	 * @param tx
+	 * @param allInputTransactions
+	 * @return
+	 */
 	private boolean isSignatureInValid(Transaction tx, Input allInputTransactions) {
 		return !Crypto.verifySignature(tx.getOutput(allInputTransactions.outputIndex).address,
 				tx.getRawDataToSign(allInputTransactions.outputIndex), allInputTransactions.signature);
 	}
 
+	/**
+	 * 
+	 * @param tx
+	 * @param allInputTransactions
+	 * @return
+	 */
 	private boolean isValueInvalid(Transaction tx, Input allInputTransactions) {
 		return tx.getOutput(allInputTransactions.outputIndex).value < 0;
 	}
@@ -89,7 +172,24 @@ public class TxHandler {
 	 * UTXO pool as appropriate.
 	 */
 	public Transaction[] handleTxs(Transaction[] possibleTxs) {
-		// IMPLEMENT THIS
+		List<Transaction> validTransaction = new ArrayList<>();
+		for (Transaction transactionEntry : possibleTxs) {
+			if (isValidTx(transactionEntry)) {
+				validTransaction.add(transactionEntry);
+				for (Input transactionInputEntry : transactionEntry.getInputs()) {
+					UTXO spentTransaction = new UTXO(transactionInputEntry.prevTxHash,
+							transactionInputEntry.outputIndex);
+					currentPool.removeUTXO(spentTransaction);
+				}
+				int index = 0;
+				for (Output transactionOutputEntry : transactionEntry.getOutputs()) {
+					UTXO validatedTransaction = new UTXO(transactionEntry.getHash(), index);
+					index++;
+					currentPool.addUTXO(validatedTransaction, transactionOutputEntry);
+				}
+			}
+		}
+
 		return null;
 	}
 
